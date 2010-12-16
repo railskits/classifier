@@ -1,0 +1,124 @@
+== Welcome to Classifier
+
+Classifier is a general module to allow Bayesian and other types of classifications.
+
+If you would like to speed up LSI classification by at least 10x, please install the following libraries:
+GNU GSL:: http://www.gnu.org/software/gsl
+rb-gsl:: http://rb-gsl.rubyforge.org
+
+Notice that LSI will work without these libraries, but as soon as they are installed, Classifier will make use of them. No configuration changes are needed, we like to keep things ridiculously easy for you.
+
+== Changes in this branch
+I made this branch to fix a TypeError on untrain (classifier-1.3.1), then merged francois[http://github.com/francois/classifier/] branch for jeweler and all the changes yuri[http://github.com/yury/classifier/] made on his branch (specially the use of ruby-stemmer, and the incompatibility fix on Array#sum, which I needed).
+After that I added support for loading the stopwords of a certain language from a file (before the list was embedded on the source code) and added a stopword list for Spanish.
+This branch only works with Ruby 1.9
+
+== Bayes
+A Bayesian classifier by Lucas Carlson. Bayesian Classifiers are accurate, fast, and have modest memory requirements.
+
+=== Usage
+    require 'classifier'
+    b = Classifier::Bayes.new :categories => ['Interesting', 'Uninteresting']
+    b.train_interesting "here are some good words. I hope you love them"
+    b.train_uninteresting "here are some bad words, I hate you"
+    b.classify "I hate bad words and you" # returns 'Uninteresting'
+    
+    require 'madeleine'
+    m = SnapshotMadeleine.new("bayes_data") {
+        Classifier::Bayes.new 'Interesting', 'Uninteresting'
+    }
+    m.system.train_interesting "here are some good words. I hope you love them"
+    m.system.train_uninteresting "here are some bad words, I hate you"
+    m.take_snapshot
+    m.system.classify "I love you" # returns 'Interesting'
+
+Using Madeleine, your application can persist the learned data over time.
+
+=== Stemmer configuration
+
+You can specify language and encoding for internal stemmer:
+
+	  b = Classifier::Bayes.new :categories => ['Interesting', 'Uninteresting'],
+      :language => 'ro', :encoding => 'ISO_8859_2'
+
+The default values are 'en' for language and 'UTF_8' for the encoding. The encoding name must have underscores instead of hyphens (i.e.: UTF_8 instead of UTF-8).
+
+Each language uses a word list to exclude certain words (stopwords). classifier comes with three included stopword lists, for English, Russian and Spanish.
+The English list is the one that comes with the original gem (don't know where it was taken from) and the Russian and Spanish are from snowball[http://snowball.tartarus.org/algorithms/].
+
+You can override the default stopword list, or add lists for new languages sending a value for :lang_dir when initializing Bayes:
+
+	  b = Classifier::Bayes.new :categories => ['Interesting', 'Uninteresting'],
+      :lang_dir => '/home/xrm0/stopwords'
+
+This directory is used when loading the list from disk and takes precedence over the default directory in lib/classifier/stopwords. Each file is named after the language (using the two letter code).
+
+The stopwords file can have comments (indicated with '#'), blank lines are ignored and the encoding must be utf-8.
+
+=== A warning about classifier serialization
+If you serialize a classifier and then deserialize it in another process, you need to be careful that the stemmer is reinitialized
+the next time you want to use it. Here is an example using ActiveRecord:
+
+    class User < ActiveRecord::Base
+      serialize :classifier, Classifier::Bayes
+      before_save :remove_stemmer
+
+      def remove_stemmer
+        self.classifier.remove_stemmer
+      end
+    end
+
+=== Bayesian Classification
+
+* http://www.process.com/precisemail/bayesian_filtering.htm
+* http://en.wikipedia.org/wiki/Bayesian_filtering
+* http://www.paulgraham.com/spam.html
+
+== LSI
+A Latent Semantic Indexer by David Fayram. Latent Semantic Indexing engines
+are not as fast or as small as Bayesian classifiers, but are more flexible, providing 
+fast search and clustering detection as well as semantic analysis of the text that 
+theoretically simulates human learning.
+
+=== Usage
+  require 'classifier'
+  lsi = Classifier::LSI.new
+  strings = [ ["This text deals with dogs. Dogs.", :dog],
+              ["This text involves dogs too. Dogs! ", :dog],
+              ["This text revolves around cats. Cats.", :cat],
+              ["This text also involves cats. Cats!", :cat],
+              ["This text involves birds. Birds.",:bird ]]
+  strings.each {|x| lsi.add_item x.first, x.last}
+  
+  lsi.search("dog", 3)
+  # returns => ["This text deals with dogs. Dogs.", "This text involves dogs too. Dogs! ", 
+  #             "This text also involves cats. Cats!"]
+
+  lsi.find_related(strings[2], 2)
+  # returns => ["This text revolves around cats. Cats.", "This text also involves cats. Cats!"]
+  
+  lsi.classify "This text is also about dogs!"
+  # returns => :dog
+  
+Please see the Classifier::LSI documentation for more information. It is possible to index, search and classify
+with more than just simple strings. 
+
+The configuration for the stemmer is the same used for Bayes:
+
+	  lsi = Classifier::LSI.new :language => 'ro', :encoding => 'ISO_8859_2'
+
+
+=== Latent Semantic Indexing
+* http://www.c2.com/cgi/wiki?LatentSemanticIndexing
+* http://www.chadfowler.com/index.cgi/Computing/LatentSemanticIndexing.rdoc
+* http://en.wikipedia.org/wiki/Latent_semantic_analysis
+
+== Authors    
+* Lucas Carlson  (mailto:lucas@rufy.com)
+* David Fayram II (mailto:dfayram@gmail.com)
+* Cameron McBride (mailto:cameron.mcbride@gmail.com)
+* Yury Korolev (mailto:yury.korolev@gmail.com)
+* Luis Parravicini (mailto:lparravi@gmail.com)
+
+This library is released under the terms of the GNU LGPL. See LICENSE for more details.
+
